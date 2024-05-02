@@ -1,14 +1,59 @@
 #include "Debugger.hpp"
+#include <limits>
+
+std::string getUserInput()
+{
+    std::string ret;
+    std::cout << "Type command ('stepin', 'bytes', 'go', 'quit')" << std::endl;
+    std::cin >> ret;
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    return ret;
+}
 
 Debugger::Debugger(const std::wstring target) : targetPath(target)
 {
     std::wcout << "Target: " << target << std::endl;
 }
 
+void Debugger::SetpInto(HANDLE handle)
+{
+    ct.EFlags |= 0x00000100;
+
+    int ret = SetThreadContext(handle, &ct);
+    if(!ret) {
+        DWORD error = GetLastError();
+        std::cout << "SetThread failed with error: " << error << std::endl;
+    } else {
+        std::cout << "Single-step flag set successfully" << std::endl;
+    }
+}
+
+void Debugger::printBytes()
+{
+    // HANDLE processHandle = OpenProcess(PROCESS_VM_READ, FALSE, this->dEventInfo.dwProcessId);
+    std::vector<unsigned char> bytes = this->pm.readMemoryBytes<uint64_t>(pi.hProcess, reinterpret_cast<LPVOID>(ct.Eip));
+
+    std::cout << "Reading: " << reinterpret_cast<LPVOID>(ct.Eip) << std::endl;
+
+    for( auto & b : bytes)
+    {
+        std::cout << std::hex << static_cast<int>(b) << " ";
+    }
+    std::cout << std::endl;
+}
+
+void Debugger::determinAction(const std::string &cmd)
+{
+    if(cmd == "quit")
+        std::exit(0);
+    if(cmd == "stepin")
+        SetpInto(currentHandle);
+    if(cmd == "bytes")
+        printBytes();
+}
+
 void Debugger::run()
 {
-    STARTUPINFOW si;
-    PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
     ZeroMemory(&pi, sizeof(pi));
 
@@ -31,6 +76,13 @@ void Debugger::run()
 
             switch (this->dEventInfo.u.Exception.ExceptionRecord.ExceptionCode)
             {
+
+            case EXCEPTION_SINGLE_STEP:
+                std::cout << "Single Step Called" << std::endl;
+                std::cout << "RIP: " << std::hex << ct.Eip << std::endl;
+                
+                break;
+
             case EXCEPTION_ACCESS_VIOLATION:
                 // First chance: Pass this on to the system.
                 // Last chance: Display an appropriate error.
@@ -46,10 +98,7 @@ void Debugger::run()
                 // Last chance: Display an appropriate error.
                 break;
 
-            case EXCEPTION_SINGLE_STEP:
-                // First chance: Update the display of the
-                // current instruction and register values.
-                break;
+
 
             case DBG_CONTROL_C:
                 // First chance: Pass this on to the system.
@@ -118,24 +167,24 @@ void Debugger::run()
             break;
         }
 
-        HANDLE handle = OpenThread(
-            THREAD_GET_CONTEXT , // Add THREAD_SUSPEND_RESUME
+        this->currentHandle = OpenThread(
+            THREAD_GET_CONTEXT | THREAD_SET_CONTEXT , // Add THREAD_SUSPEND_RESUME
             FALSE,
             this->dEventInfo.dwThreadId);
 
-        std::cout << "Handle: " << handle << std::endl;
+        std::cout << "Handle: " << currentHandle << std::endl;
 
-        if (handle != NULL)
+        if (currentHandle != NULL)
         {
-			CONTEXT ct;
 			memset(&ct, 0, sizeof(ct));
-			ct.ContextFlags = CONTEXT_ALL;
+			ct.ContextFlags = CONTEXT_FULL;
 
-            DWORD tmp = GetThreadContext(handle, &ct);
+            DWORD tmp = GetThreadContext(currentHandle, &ct);
             std::cout << "GetThreadContextMsg: " << tmp << std::endl;
             if (tmp)
             {
-                std::cout << "RIP: " << ct.Esp << std::endl;
+                std::cout << "RIP: " << std::hex << ct.Eip << std::endl;
+                
             }
             else // GetThreadContext failed
             {
@@ -143,7 +192,9 @@ void Debugger::run()
                 std::cerr << "GetThreadContext failed with error code: " << error << std::endl;
             }
 
-            CloseHandle(handle);  // Close the thread handle
+            std::string cmd = getUserInput();
+            determinAction(cmd);
+            CloseHandle(currentHandle);
         }
         else // OpenThread failed
         {
