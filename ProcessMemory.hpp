@@ -9,20 +9,25 @@ class ProcessMemory
     T readMemory(HANDLE proc, LPVOID addr)
     {
         T ret;
-        ReadProcessMemory(proc, addr, &ret, sizeof(T), NULL);
-        return ret;
+        int rpm = ReadProcessMemory(proc, addr, &ret, sizeof(T), NULL);
+        std::cout << "RPM return: " << rpm << std::endl;
+        if(rpm)
+            return ret;
+        return NULL;
     }
 
     template<typename T>
-    std::vector<unsigned char> readMemoryBytes(HANDLE proc, LPVOID addr)
+    std::vector<unsigned char> readMemoryBytes(HANDLE proc, LPVOID addr, size_t numBytes)
     {
-        std::vector<unsigned char> bytes(sizeof(T));
-    
-        for (size_t i = 0; i < sizeof(T); ++i)
-        {
-            ReadProcessMemory(proc, static_cast<LPBYTE>(addr) + i, &bytes[i], sizeof(unsigned char), nullptr);
+        std::vector<unsigned char> bytes(numBytes);
+
+        SIZE_T bytesRead;
+        ReadProcessMemory(proc, addr, bytes.data(), numBytes, &bytesRead);
+
+        if (bytesRead < numBytes) {
+            bytes.resize(bytesRead);
         }
-    
+
         return bytes;
     }
 

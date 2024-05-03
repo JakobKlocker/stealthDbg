@@ -30,9 +30,7 @@ void Debugger::SetpInto(HANDLE handle)
 
 void Debugger::printBytes()
 {
-    // HANDLE processHandle = OpenProcess(PROCESS_VM_READ, FALSE, this->dEventInfo.dwProcessId);
-    std::vector<unsigned char> bytes = this->pm.readMemoryBytes<uint64_t>(pi.hProcess, reinterpret_cast<LPVOID>(ct.Eip));
-
+    std::vector<unsigned char> bytes = this->pm.readMemoryBytes<uint64_t>(pi.hProcess, reinterpret_cast<LPVOID>(ct.Eip), sizeof(uint64_t));
     std::cout << "Reading: " << reinterpret_cast<LPVOID>(ct.Eip) << std::endl;
 
     for( auto & b : bytes)
@@ -44,11 +42,11 @@ void Debugger::printBytes()
 
 void Debugger::determinAction(const std::string &cmd)
 {
-    if(cmd == "quit")
+    if(cmd == "q")
         std::exit(0);
-    if(cmd == "stepin")
+    if(cmd == "s")
         SetpInto(currentHandle);
-    if(cmd == "bytes")
+    if(cmd == "b")
         printBytes();
 }
 
@@ -69,11 +67,6 @@ void Debugger::run()
         switch (this->dEventInfo.dwDebugEventCode)
         {
         case EXCEPTION_DEBUG_EVENT:
-            // Process the exception code. When handling
-            // exceptions, remember to set the continuation
-            // status parameter (dwContinueStatus). This value
-            // is used by the ContinueDebugEvent function.
-
             switch (this->dEventInfo.u.Exception.ExceptionRecord.ExceptionCode)
             {
 
@@ -84,53 +77,29 @@ void Debugger::run()
                 break;
 
             case EXCEPTION_ACCESS_VIOLATION:
-                // First chance: Pass this on to the system.
-                // Last chance: Display an appropriate error.
                 break;
 
             case EXCEPTION_BREAKPOINT:
-                // First chance: Display the current
-                // instruction and register values.
                 break;
 
             case EXCEPTION_DATATYPE_MISALIGNMENT:
-                // First chance: Pass this on to the system.
-                // Last chance: Display an appropriate error.
                 break;
 
-
-
             case DBG_CONTROL_C:
-                // First chance: Pass this on to the system.
-                // Last chance: Display an appropriate error.
                 break;
 
             default:
-                // Handle other exceptions.
                 break;
             }
 
             break;
 
         case CREATE_THREAD_DEBUG_EVENT:
-            // As needed, examine or change the thread's registers
-            // with the GetThreadContext and SetThreadContext functions;
-            // and suspend and resume thread execution with the
-            // SuspendThread and ResumeThread functions.
             std::wcout << L"Create Thread" << std::endl;
 
             break;
 
         case CREATE_PROCESS_DEBUG_EVENT:
-            // As needed, examine or change the registers of the
-            // process's initial thread with the GetThreadContext and
-            // SetThreadContext functions; read from and write to the
-            // process's virtual memory with the ReadProcessMemory and
-            // WriteProcessMemory functions; and suspend and resume
-            // thread execution with the SuspendThread and ResumeThread
-            // functions. Be sure to close the handle to the process image
-            // file with CloseHandle.
-
             std::wcout << L"Create Process" << std::endl;
             break;
 
@@ -146,21 +115,56 @@ void Debugger::run()
             return;
 
         case LOAD_DLL_DEBUG_EVENT:
-            // Read the debugging information included in the newly
-            // loaded DLL. Be sure to close the handle to the loaded DLL
-            // with CloseHandle.
+        {
+            _LOAD_DLL_DEBUG_INFO loadDllInfo = dEventInfo.u.LoadDll;
+            DWORD64 baseAddrOfDll = reinterpret_cast<DWORD64>(loadDllInfo.lpBaseOfDll);
+
+            std::cout << "loadDllInfo.lpImageName: " << loadDllInfo.lpImageName << std::endl; 
+
+            void *firstScan = pm.readMemory<void*>(pi.hProcess, loadDllInfo.lpImageName);
+
+            if (firstScan) 
+            { 
+                //Pretty disgusting, make it so it works for w_chars
+                
+                std::vector<unsigned char> stringBytes = pm.readMemoryBytes<unsigned char>(pi.hProcess, reinterpret_cast<LPVOID>(firstScan), 255);
+
+                int i = 0;
+                bool beforeNull = false;
+                for(; i < stringBytes.size(); i++)
+                {
+                    if (stringBytes[i] == 0)
+                    {
+                        if(beforeNull == true)
+                            break;
+                        beforeNull = true;
+                        continue;
+                    }
+                    beforeNull = false;
+                }
+
+                std::cout << "i = " << i << std::endl;
+
+
+
+                std::string str(stringBytes.begin(), stringBytes.begin() + i);
+
+
+
+                str.push_back('\0'); // Null terminate the string
+
+                std::cout << str << std::endl;
+            }
             std::wcout << L"DLL Loaded" << std::endl;
             break;
+        }
 
         case UNLOAD_DLL_DEBUG_EVENT:
             std::wcout << L"DLL Unloaded" << std::endl;
-            // Display a message that the DLL has been unloaded.
 
             break;
 
         case OUTPUT_DEBUG_STRING_EVENT:
-            // Display the output debugging string.
-
             break;
 
         case RIP_EVENT:

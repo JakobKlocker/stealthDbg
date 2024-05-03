@@ -1,11 +1,11 @@
 #include "ProcessMemory.hpp"
+#include "Module.hpp"
 #include <Windows.h>
 #include <string>
 #include <vector>
 #include <iostream>
 #include <limits>
 
-const int TRAP_FLAG = 1 << 8;
 
 class Debugger
 {
@@ -17,6 +17,7 @@ private:
     DEBUG_EVENT dEventInfo;
     CONTEXT ct;
     HANDLE currentHandle;
+    std::vector<Module>moduleList;
 
 public:
     Debugger(const std::wstring target);
