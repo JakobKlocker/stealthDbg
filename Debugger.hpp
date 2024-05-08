@@ -1,5 +1,6 @@
 #include "ProcessMemory.hpp"
 #include "Module.hpp"
+#include "stringHelper.hpp"
 #include <Windows.h>
 #include <string>
 #include <vector>

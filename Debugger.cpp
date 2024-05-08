@@ -50,6 +50,8 @@ void Debugger::determinAction(const std::string &cmd)
         printBytes();
 }
 
+
+
 void Debugger::run()
 {
     ZeroMemory(&si, sizeof(si));
@@ -126,36 +128,21 @@ void Debugger::run()
             if (firstScan) 
             { 
                 //Pretty disgusting, make it so it works for w_chars
-                
                 std::vector<unsigned char> stringBytes = pm.readMemoryBytes<unsigned char>(pi.hProcess, reinterpret_cast<LPVOID>(firstScan), 255);
 
-                int i = 0;
-                bool beforeNull = false;
-                for(; i < stringBytes.size(); i++)
+                if(loadDllInfo.fUnicode)
                 {
-                    if (stringBytes[i] == 0)
-                    {
-                        if(beforeNull == true)
-                            break;
-                        beforeNull = true;
-                        continue;
-                    }
-                    beforeNull = false;
+                    std::wstring str = bytesToWideString(stringBytes);
+                    std::wcout << str << std::endl;
+                }
+                else
+                {
+                    std::string str = bytesToString(stringBytes);
+                    std::cout << str << std::endl;
                 }
 
-                std::cout << "i = " << i << std::endl;
-
-
-
-                std::string str(stringBytes.begin(), stringBytes.begin() + i);
-
-
-
-                str.push_back('\0'); // Null terminate the string
-
-                std::cout << str << std::endl;
             }
-            std::wcout << L"DLL Loaded" << std::endl;
+            
             break;
         }
 
