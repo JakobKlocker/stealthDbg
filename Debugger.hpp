@@ -6,7 +6,12 @@
 #include <vector>
 #include <iostream>
 #include <limits>
+#include <utility>
 
+struct BreakpointInfo {
+    LPVOID address;
+    BYTE originalByte;
+};
 
 class Debugger
 {
@@ -20,10 +25,13 @@ private:
     HANDLE currentHandle;
     std::vector<Module>moduleList;
 
+    std::vector<BreakpointInfo> breakpoints;
+
 public:
     Debugger(const std::wstring target);
     void SetpInto(HANDLE handle);
     void determinAction(const std::string &cmd);
     void printBytes();
+    void breakpointCC(LPVOID * addr);
     void run();
 };
